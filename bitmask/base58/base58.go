@@ -12,7 +12,7 @@ const (
 )
 
 var (
-	revAlphabet = map[string]int{
+	revAlphabet = map[Base58]int64{
 		"1": 0, "2": 1, "3": 2, "4": 3, "5": 4, "6": 5, "7": 6, "8": 7, "9": 8, "A": 9,
 		"B": 10, "C": 11, "D": 12, "E": 13, "F": 14, "G": 15, "H": 16, "J": 17, "K": 18,
 		"L": 19, "M": 20, "N": 21, "P": 22, "Q": 23, "R": 24, "S": 25, "T": 26, "U": 27,
@@ -27,14 +27,7 @@ func FromBytes(input []byte) (Base58, error) {
 	if len(input) < 1 {
 		return "", errors.New("base58.FromBytes: Byte slice is too short")
 	}
-
 	output := ""
-	for i := 0; i < len(input); i++ {
-		if input[i] > 0 {
-			break
-		}
-		output += "1"
-	}
 
 	n := big.NewInt(0).SetBytes(input)
 	r := big.NewInt(0)
@@ -44,7 +37,15 @@ func FromBytes(input []byte) (Base58, error) {
 	for n.Cmp(zero) == 1 {
 		r.Mod(n, base)
 		n.Div(n, base)
-		output += alphabet[0:r.Int64()]
+		idx := r.Int64()
+		output = alphabet[idx:idx+1] + output
+	}
+
+	for i := 0; i < len(input); i++ {
+		if input[i] > 0 {
+			break
+		}
+		output = "1" + output
 	}
 
 	return Base58(output), nil
@@ -52,11 +53,26 @@ func FromBytes(input []byte) (Base58, error) {
 
 func ToBytes(input Base58) ([]byte, error) {
 	output := big.NewInt(0)
+	tmp := big.NewInt(0)
 
-	//base := big.NewInt(0)
-	//exp := big.NewInt(0)
-	//for i := 0; i < len(input); i++ {
-	//	tmp.Exp(x, y, m)
-	//	output.Add(output, y)
-	//}
+	base := big.NewInt(58)
+	exp := big.NewInt(0)
+	val := big.NewInt(0)
+	count := len(input)
+	for i := 0; i < count; i++ {
+		v, ok := revAlphabet[input[i:i+1]]
+		if !ok {
+			return nil, errors.New(
+				"base58.ToBytes: Character not present in base58")
+		}
+
+		val.SetInt64(v)
+		exp.SetInt64(int64(count - (i + 1)))
+
+		tmp.Exp(base, exp, nil)
+		tmp.Mul(tmp, val)
+		output.Add(output, tmp)
+	}
+
+	return output.Bytes(), nil
 }
