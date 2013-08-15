@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func Test1(t *testing.T) {
+func TestConversion(t *testing.T) {
 
 	bytes := []byte("This is a string")
 
