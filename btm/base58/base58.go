@@ -5,14 +5,12 @@ import (
 	"math/big"
 )
 
-type Base58 string
-
 const (
 	alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 )
 
 var (
-	revAlphabet = map[Base58]int64{
+	revAlphabet = map[string]int64{
 		"1": 0, "2": 1, "3": 2, "4": 3, "5": 4, "6": 5, "7": 6, "8": 7, "9": 8, "A": 9,
 		"B": 10, "C": 11, "D": 12, "E": 13, "F": 14, "G": 15, "H": 16, "J": 17, "K": 18,
 		"L": 19, "M": 20, "N": 21, "P": 22, "Q": 23, "R": 24, "S": 25, "T": 26, "U": 27,
@@ -23,7 +21,7 @@ var (
 	}
 )
 
-func FromBytes(input []byte) (Base58, error) {
+func FromBytes(input []byte) (string, error) {
 	if len(input) < 1 {
 		return "", errors.New("base58.FromBytes: Byte slice is too short")
 	}
@@ -48,10 +46,10 @@ func FromBytes(input []byte) (Base58, error) {
 		output = "1" + output
 	}
 
-	return Base58(output), nil
+	return output, nil
 }
 
-func ToBytes(input Base58) ([]byte, error) {
+func ToBytes(input string) ([]byte, error) {
 	output := big.NewInt(0)
 	tmp := big.NewInt(0)
 

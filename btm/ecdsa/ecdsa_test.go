@@ -8,7 +8,7 @@ package ecdsa
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"github.com/jashper/bitmask-go/bitmask/ec256k1"
+	"github.com/jashper/bitmask-go/btm/ec256k1"
 	"math/big"
 	"testing"
 )
