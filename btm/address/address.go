@@ -18,9 +18,6 @@ const (
 type Address struct {
 	Version    byte
 	PrivateKey *ecdsa.PrivateKey
-	PublicKey  []byte
-	Hash       []byte
-	Checksum   []byte
 	Base58     string
 }
 
@@ -34,24 +31,24 @@ func New(version byte) (*Address, error) {
 		return nil, errors.New("address.New: Error generating ecdsa encryption key")
 	}
 
-	addr.PublicKey = append(addr.PrivateKey.PublicKey.X.Bytes(),
+	publicKey := append(addr.PrivateKey.PublicKey.X.Bytes(),
 		addr.PrivateKey.PublicKey.Y.Bytes()...)
 
 	sha := sha512.New()
-	sha.Write(addr.PublicKey)
+	sha.Write(publicKey)
 
 	ripemd := ripemd160.New()
 	ripemd.Write(sha.Sum(nil))
-	addr.Hash = ripemd.Sum(nil)
+	hash := ripemd.Sum(nil)
 
 	toCheck := []byte{addr.Version}
-	toCheck = append(toCheck, addr.Hash...)
+	toCheck = append(toCheck, hash...)
 	sha1, sha2 := sha512.New(), sha512.New()
 	sha1.Write(toCheck)
 	sha2.Write(sha1.Sum(nil))
-	addr.Checksum = sha2.Sum(nil)[:4]
+	checksum := sha2.Sum(nil)[:4]
 
-	addr.Base58, err = base58.FromBytes(append(toCheck, addr.Checksum...))
+	addr.Base58, err = base58.FromBytes(append(toCheck, checksum...))
 	if err != nil {
 		return nil, err
 	}
