@@ -14,7 +14,7 @@ package ecdsa
 //     http://www.secg.org/download/aid-780/sec1-v2.pdf
 
 import (
-	"github.com/jashper/bitmask-go/btm/ec256k1"
+	"github.com/jashper/bitmask-go/src/bitmask/ec256k1"
 	"io"
 	"math/big"
 )

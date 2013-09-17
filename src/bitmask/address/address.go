@@ -5,10 +5,10 @@ import (
 	"crypto/sha512"
 	"errors"
 
-	"github.com/jashper/bitmask-go/btm/base58"
-	"github.com/jashper/bitmask-go/btm/ec256k1"
-	"github.com/jashper/bitmask-go/btm/ecdsa"
-	"github.com/jashper/bitmask-go/btm/ripemd160"
+	"github.com/jashper/bitmask-go/src/bitmask/base58"
+	"github.com/jashper/bitmask-go/src/bitmask/ec256k1"
+	"github.com/jashper/bitmask-go/src/bitmask/ecdsa"
+	"github.com/jashper/bitmask-go/src/bitmask/ripemd160"
 )
 
 const (
