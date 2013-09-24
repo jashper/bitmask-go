@@ -1,14 +1,13 @@
-package address
+package bitmask
 
 import (
 	"crypto/rand"
 	"crypto/sha512"
 	"errors"
 
-	"github.com/jashper/bitmask-go/src/bitmask/base58"
-	"github.com/jashper/bitmask-go/src/bitmask/ec256k1"
-	"github.com/jashper/bitmask-go/src/bitmask/ecdsa"
-	"github.com/jashper/bitmask-go/src/bitmask/ripemd160"
+	"github.com/jashper/bitmask-go/bitmask/ec256k1"
+	"github.com/jashper/bitmask-go/bitmask/ecdsa"
+	"github.com/jashper/bitmask-go/bitmask/ripemd160"
 )
 
 const (
@@ -21,7 +20,7 @@ type Address struct {
 	Base58     string
 }
 
-func New(version byte) (*Address, error) {
+func NewAddress(version byte) (*Address, error) {
 	addr := new(Address)
 	addr.Version = version
 
@@ -48,7 +47,7 @@ func New(version byte) (*Address, error) {
 	sha2.Write(sha1.Sum(nil))
 	checksum := sha2.Sum(nil)[:4]
 
-	addr.Base58, err = base58.FromBytes(append(toCheck, checksum...))
+	addr.Base58, err = EncodeBase58(append(toCheck, checksum...))
 	if err != nil {
 		return nil, err
 	}

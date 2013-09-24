@@ -1,4 +1,4 @@
-package base58
+package bitmask
 
 import (
 	"errors"
@@ -6,11 +6,11 @@ import (
 )
 
 const (
-	alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+	BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 )
 
 var (
-	revAlphabet = map[string]int64{
+	BASE58_REV_ALPHABET = map[string]int64{
 		"1": 0, "2": 1, "3": 2, "4": 3, "5": 4, "6": 5, "7": 6, "8": 7, "9": 8, "A": 9,
 		"B": 10, "C": 11, "D": 12, "E": 13, "F": 14, "G": 15, "H": 16, "J": 17, "K": 18,
 		"L": 19, "M": 20, "N": 21, "P": 22, "Q": 23, "R": 24, "S": 25, "T": 26, "U": 27,
@@ -21,7 +21,7 @@ var (
 	}
 )
 
-func FromBytes(input []byte) (string, error) {
+func EncodeBase58(input []byte) (string, error) {
 	if len(input) < 1 {
 		return "", errors.New("base58.FromBytes: Byte slice is too short")
 	}
@@ -36,7 +36,7 @@ func FromBytes(input []byte) (string, error) {
 		r.Mod(n, base)
 		n.Div(n, base)
 		idx := r.Int64()
-		output = alphabet[idx:idx+1] + output
+		output = BASE58_ALPHABET[idx:idx+1] + output
 	}
 
 	for i := 0; i < len(input); i++ {
@@ -49,7 +49,7 @@ func FromBytes(input []byte) (string, error) {
 	return output, nil
 }
 
-func ToBytes(input string) ([]byte, error) {
+func DecodeBase58(input string) ([]byte, error) {
 	output := big.NewInt(0)
 	tmp := big.NewInt(0)
 
@@ -58,7 +58,7 @@ func ToBytes(input string) ([]byte, error) {
 	val := big.NewInt(0)
 	count := len(input)
 	for i := 0; i < count; i++ {
-		v, ok := revAlphabet[input[i:i+1]]
+		v, ok := BASE58_REV_ALPHABET[input[i:i+1]]
 		if !ok {
 			return nil, errors.New(
 				"base58.ToBytes: Character not present in base58")
