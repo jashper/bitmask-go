@@ -1,0 +1,8 @@
+Types of Messages:
+
+VERSION:
+(same as bitmessage, except no magic, no nonce, and uint32_t for command instead )
+
+VERACK:
+(same as bitmessage)
+
