@@ -35,7 +35,12 @@ func (this *Peer) run() {
 	var buffA, buffB, buffC bytes.Buffer
 	var commandType, payloadLen, checkSum uint32
 	for {
-		_, err := this.socket.Read(header[:])
+		length, err := this.socket.Read(header[:])
+
+		if length != 12 {
+			fmt.Println("Invalid header => less than 12 bytes")
+			return
+		}
 
 		if err != nil {
 			fmt.Println("Peer disconnected")
@@ -57,7 +62,12 @@ func (this *Peer) run() {
 		command := Command(commandType)
 
 		payload := make([]byte, payloadLen) // TODO: make this more efficient
-		_, err = this.socket.Read(payload[:])
+		length, err = this.socket.Read(payload[:])
+
+		if uint32(length) != payloadLen {
+			fmt.Println("Invalid header => payload length mismatch")
+			return
+		}
 
 		// TODO: Verify payload with checksum
 
@@ -65,7 +75,8 @@ func (this *Peer) run() {
 		case VERSION:
 			this.parseVersion(payload)
 		default:
-			fmt.Println("Invalid Command")
+			fmt.Println("Invalid header => non-existant command")
+			return
 		}
 	}
 }
