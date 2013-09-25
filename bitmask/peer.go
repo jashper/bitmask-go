@@ -12,8 +12,8 @@ type Peer struct {
 	context *Context
 }
 
-func NewPeer(socket net.Conn, context *Context) *Peer {
-	this := new(Peer)
+func NewPeer(socket net.Conn, context *Context) (this *Peer) {
+	this = new(Peer)
 	this.socket = socket
 	this.context = context
 
@@ -22,8 +22,8 @@ func NewPeer(socket net.Conn, context *Context) *Peer {
 	return this
 }
 
-func (this *Peer) Send(message []byte) error {
-	_, err := this.socket.Write(message)
+func (this *Peer) Send(message []byte) (err error) {
+	_, err = this.socket.Write(message)
 
 	return err
 }

@@ -15,8 +15,8 @@ type Listener struct {
 	socket  net.Listener
 }
 
-func NewNetwork(context *Context) *Network {
-	this := new(Network)
+func NewNetwork(context *Context) (this *Network) {
+	this = new(Network)
 	this.context = context
 	this.listeners = make([]*Listener, 0)
 
