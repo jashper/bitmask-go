@@ -16,6 +16,7 @@ func NewPeer(socket net.Conn, context *Context) *Peer {
 	this := new(Peer)
 	this.socket = socket
 	this.context = context
+
 	go this.run()
 
 	return this
@@ -29,28 +30,33 @@ func (this *Peer) Send(message []byte) error {
 
 func (this *Peer) run() {
 	defer this.socket.Close()
-	fmt.Println("New user connected")
 
 	var header [12]byte // command + len(payload) + checksum
+	var buffA, buffB, buffC bytes.Buffer
 	var commandType, payloadLen, checkSum uint32
 	for {
 		_, err := this.socket.Read(header[:])
 
 		if err != nil {
-			fmt.Println("User disconnected")
+			fmt.Println("Peer disconnected")
 			return
 		}
 
-		buffer := bytes.NewBuffer(header[0:4])
-		binary.Read(buffer, binary.BigEndian, &commandType)
-		buffer = bytes.NewBuffer(header[4:8])
-		binary.Read(buffer, binary.BigEndian, &payloadLen)
-		buffer = bytes.NewBuffer(header[8:12])
-		binary.Read(buffer, binary.BigEndian, &checkSum)
+		buffA.Write(header[0:4])
+		binary.Read(&buffA, binary.BigEndian, &commandType)
+		buffA.Reset()
+
+		buffB.Write(header[4:8])
+		binary.Read(&buffB, binary.BigEndian, &payloadLen)
+		buffB.Reset()
+
+		buffC.Write(header[8:12])
+		binary.Read(&buffC, binary.BigEndian, &checkSum)
+		buffC.Reset()
 
 		command := Command(commandType)
 
-		payload := make([]byte, payloadLen)
+		payload := make([]byte, payloadLen) // TODO: make this more efficient
 		_, err = this.socket.Read(payload[:])
 
 		// TODO: Verify payload with checksum
