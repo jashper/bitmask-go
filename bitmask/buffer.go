@@ -13,7 +13,8 @@ type Buffer struct {
 	peerTail  int
 	peerCount int32
 
-	cleanLock int32
+	putReserve int32
+	cleanLock  int32
 }
 
 func NewBuffer(size int) (this *Buffer) {
@@ -21,16 +22,12 @@ func NewBuffer(size int) (this *Buffer) {
 	this.values = make([][]byte, size)
 	this.maxIdx = size - 1
 
-	// TODO: is this needed?
-	for i := 0; i < size; i++ {
-		this.values[i] = nil
-	}
-
 	this.head = 0
 	this.tail = 0
 	this.peerTail = 0
 	this.peerCount = 0
 
+	this.putReserve = 0
 	this.cleanLock = 0
 
 	return this
@@ -50,24 +47,47 @@ func (b *Buffer) Clean() {
 		}
 	}
 
+	b.cleanLock == 0
+
 }
 
 func (b *Buffer) Put(value []byte) {
-	for int(b.head)+1 == b.tail {
-		b.Clean()
-	}
 
-	var temp int32
+	tempSlice := make([]byte, len(value))
+	copy(tempSlice, value)
+
 	for {
-		temp = b.head
-		if atomic.CompareAndSwapInt32(&b.head, temp, temp+1) {
+		putIdx := b.putReserve
+
+		newIdx := putIdx + 1
+		if newIdx > b.maxIdx {
+			newIdx = 0
+		}
+
+		for newIdx == b.tail {
+			b.Clean()
+		}
+
+		if atomic.CompareAndSwapInt32(&b.putReserve, putIdx, newIdx) {
+			b.values[putIdx] = tempSlice
+
+			for {
+				temp := b.head
+
+				if putIdx < temp {
+					break
+				}
+
+				if atomic.CompareAndSwapInt32(&b.head, temp, putIdx) {
+					break
+				}
+			}
+
 			break
 		}
 	}
 
-	b.values[temp] = make([]byte, len(value))
-	copy(b.values[temp], value)
-
+	b.Clean()
 }
 
 func (b *Buffer) Get(peerStart int) (values [][]byte, newStart int) {
@@ -82,15 +102,11 @@ func (b *Buffer) Get(peerStart int) (values [][]byte, newStart int) {
 		}
 	}
 
-	if peerStart >= int(b.head) && peerStart < b.tail {
+	if peerStart == int(b.head) {
 		return nil, peerStart
 	}
 
-	// account for incomplete Put
 	newStart = int(b.head)
-	for b.values[newStart-1] == nil {
-		newStart--
-	}
 
 	isPeerTail := false
 	if peerStart == b.peerTail {
