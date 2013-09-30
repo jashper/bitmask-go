@@ -47,7 +47,7 @@ func (b *Buffer) Clean() {
 		}
 	}
 
-	b.cleanLock == 0
+	b.cleanLock = 0
 
 }
 
@@ -60,11 +60,11 @@ func (b *Buffer) Put(value []byte) {
 		putIdx := b.putReserve
 
 		newIdx := putIdx + 1
-		if newIdx > b.maxIdx {
+		if int(newIdx) > b.maxIdx {
 			newIdx = 0
 		}
 
-		for newIdx == b.tail {
+		for int(newIdx) == b.tail {
 			b.Clean()
 		}
 
@@ -74,11 +74,9 @@ func (b *Buffer) Put(value []byte) {
 			for {
 				temp := b.head
 
-				if putIdx < temp {
-					break
-				}
+				// TODO: Possible race condition with writing the wrong head
 
-				if atomic.CompareAndSwapInt32(&b.head, temp, putIdx) {
+				if atomic.CompareAndSwapInt32(&b.head, temp, newIdx) {
 					break
 				}
 			}
@@ -121,14 +119,16 @@ func (b *Buffer) Get(peerStart int) (values [][]byte, newStart int) {
 	}
 
 	values = make([][]byte, count)
+	idx := 0
 	for peerStart != newStart {
-		values[peerStart] = make([]byte, len(b.values[peerStart]))
-		copy(values[peerStart], b.values[peerStart])
+		values[idx] = make([]byte, len(b.values[peerStart]))
+		copy(values[idx], b.values[peerStart])
 
 		peerStart++
 		if peerStart > b.maxIdx {
 			peerStart = 0
 		}
+		idx++
 	}
 
 	for isPeerTail == true {
