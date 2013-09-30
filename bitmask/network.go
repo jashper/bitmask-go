@@ -55,9 +55,7 @@ func (this *Listener) run() {
 			return
 		}
 
-		peer := NewPeer(s, this.context)
-
-		// TODO:  Handle/process new peer pointer
+		_ = NewPeer(s, this.context)
 
 	}
 }
@@ -83,9 +81,7 @@ func (this *Network) SpawnPeer(address string) (success bool) {
 	}
 	fmt.Println("Successfully connected to peer")
 
-	peer := NewPeer(socket, this.context)
-
-	// TODO:  Handle/process new peer pointer
+	_ = NewPeer(socket, this.context)
 
 	return true
 }

@@ -10,12 +10,15 @@ import (
 type Peer struct {
 	socket  net.Conn
 	context *Context
+	ID      int
 }
 
 func NewPeer(socket net.Conn, context *Context) (this *Peer) {
 	this = new(Peer)
 	this.socket = socket
 	this.context = context
+
+	// TODO: Assign unique value to ID (ie: ip address)
 
 	go this.run()
 
