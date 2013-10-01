@@ -8,13 +8,26 @@ type Buffer struct {
 	values [][]byte
 	maxIdx int
 
-	head      int32
-	tail      int
-	peerTail  int
-	peerCount int32
+	head     int32
+	peerTail int
+	tail     int
+
+	peerCount    int
+	voteCount    int
+	voteRound    int
+	nextPeerTail int
 
 	putReserve int32
 	cleanLock  int32
+	voteLock   int32
+}
+
+type BufferListener struct {
+	idx    int
+	buffer *Buffer
+
+	round    int
+	hasVoted bool
 }
 
 func NewBuffer(size int) (this *Buffer) {
@@ -23,19 +36,109 @@ func NewBuffer(size int) (this *Buffer) {
 	this.maxIdx = size - 1
 
 	this.head = 0
-	this.tail = 0
 	this.peerTail = 0
+	this.tail = 0
+
 	this.peerCount = 0
+	this.voteCount = 0
+	this.voteRound = 0
+	this.nextPeerTail = 0
 
 	this.putReserve = 0
 	this.cleanLock = 0
+	this.voteLock = 0
 
 	return this
 }
 
-func (b *Buffer) Clean() {
+func (b *Buffer) SpawnListener() (bl *BufferListener) {
+	bl = new(BufferListener)
+	bl.buffer = b
+	bl.hasVoted = false
+
+	for {
+		if atomic.CompareAndSwapInt32(&b.voteLock, 0, 1) {
+			bl.round = b.voteRound
+			bl.idx = b.peerTail
+			b.peerCount++
+
+			b.voteLock = 0
+			break
+		}
+	}
+
+	return bl
+}
+
+func (bl *BufferListener) Stop() {
+	b := bl.buffer
+	for {
+		if atomic.CompareAndSwapInt32(&b.voteLock, 0, 1) {
+			b.peerCount--
+			b.voteLock = 0
+			break
+		}
+	}
+}
+
+func (bl *BufferListener) Get() (values [][]byte) {
+	b := bl.buffer
+
+	values, bl.idx = b.get(bl.idx)
+	bl.vote()
+
+	return values
+}
+
+func (bl *BufferListener) vote() {
+	b := bl.buffer
+
+	if bl.round != b.voteRound {
+		bl.round = b.voteRound
+		bl.hasVoted = false
+	}
+
+	if !bl.hasVoted {
+		for {
+			if atomic.CompareAndSwapInt32(&b.voteLock, 0, 1) {
+				if b.voteCount == 0 {
+					b.nextPeerTail = bl.idx
+					b.voteCount++
+				} else {
+					if bl.idx < b.nextPeerTail {
+						b.nextPeerTail = bl.idx
+						bl.round++
+						b.voteCount = 1
+					} else {
+						b.voteCount++
+					}
+				}
+
+				bl.hasVoted = true
+
+				b.voteLock = 0
+				break
+			}
+		}
+	}
+}
+
+func (b *Buffer) clean() {
 	if b.cleanLock == 1 || !atomic.CompareAndSwapInt32(&b.cleanLock, 0, 1) {
 		return
+	}
+
+	if b.voteCount >= b.peerCount {
+		for {
+			if atomic.CompareAndSwapInt32(&b.voteLock, 0, 1) {
+				b.peerTail = b.nextPeerTail
+				b.voteCount = 0
+				b.voteRound++
+
+				b.voteLock = 0
+				break
+			}
+		}
 	}
 
 	for b.tail != b.peerTail {
@@ -51,7 +154,8 @@ func (b *Buffer) Clean() {
 
 }
 
-func (b *Buffer) Put(value []byte) {
+func (bl *BufferListener) Put(value []byte) {
+	b := bl.buffer
 
 	tempSlice := make([]byte, len(value))
 	copy(tempSlice, value)
@@ -65,7 +169,7 @@ func (b *Buffer) Put(value []byte) {
 		}
 
 		for int(newIdx) == b.tail {
-			b.Clean()
+			b.clean()
 		}
 
 		if atomic.CompareAndSwapInt32(&b.putReserve, putIdx, newIdx) {
@@ -73,8 +177,6 @@ func (b *Buffer) Put(value []byte) {
 
 			for {
 				temp := b.head
-
-				// TODO: Possible race condition with writing the wrong head
 
 				if atomic.CompareAndSwapInt32(&b.head, temp, newIdx) {
 					break
@@ -85,63 +187,35 @@ func (b *Buffer) Put(value []byte) {
 		}
 	}
 
-	b.Clean()
+	b.clean()
 }
 
-func (b *Buffer) Get(peerStart int) (values [][]byte, newStart int) {
-	if peerStart == -1 { // New peer starting to read/get
-		for {
-			temp := b.peerCount
-			if temp != -1 && atomic.CompareAndSwapInt32(&b.peerCount, temp, -1) {
-				peerStart = b.peerTail
-				b.peerCount = temp + 1
-				break
-			}
-		}
+func (b *Buffer) get(start int) (values [][]byte, end int) {
+	if start == int(b.head) {
+		return nil, start
 	}
 
-	if peerStart == int(b.head) {
-		return nil, peerStart
-	}
-
-	newStart = int(b.head)
-
-	isPeerTail := false
-	if peerStart == b.peerTail {
-		isPeerTail = true
-	}
+	end = int(b.head)
 
 	var count int
-	if peerStart > newStart {
-		count = b.maxIdx - peerStart + newStart + 1
+	if start > end {
+		count = b.maxIdx - start + end + 1
 	} else {
-		count = newStart - peerStart
+		count = end - start
 	}
 
 	values = make([][]byte, count)
 	idx := 0
-	for peerStart != newStart {
-		values[idx] = make([]byte, len(b.values[peerStart]))
-		copy(values[idx], b.values[peerStart])
+	for start != end {
+		values[idx] = make([]byte, len(b.values[start]))
+		copy(values[idx], b.values[start])
 
-		peerStart++
-		if peerStart > b.maxIdx {
-			peerStart = 0
+		start++
+		if start > b.maxIdx {
+			start = 0
 		}
 		idx++
 	}
 
-	for isPeerTail == true {
-		temp := b.peerCount
-		if atomic.CompareAndSwapInt32(&b.peerCount, temp, temp-1) {
-			break
-		}
-	}
-
-	if atomic.CompareAndSwapInt32(&b.peerCount, 0, -1) {
-		b.peerTail = newStart
-		b.peerCount = 1
-	}
-
-	return values, newStart
+	return values, end
 }

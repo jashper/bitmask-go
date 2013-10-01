@@ -9,23 +9,28 @@ import (
 )
 
 func testA(b *Buffer) {
-	for i := 0; i < 11; i++ {
-		b.Put([]byte(strconv.FormatInt(int64(i), 10)))
+	lA := b.SpawnListener()
+	lB := b.SpawnListener()
+
+	for i := 0; i < 15; i++ {
+		lB.Put([]byte(strconv.FormatInt(int64(i), 10)))
 
 		if i == 8 {
-			go testB(b)
+			testB(lA)
+			testB(lB)
 		}
 	}
 
-	b.Get(-1)
-	//fmt.Println(len(values))
+	lC := b.SpawnListener()
+	testB(lA)
+	testB(lC)
+	testB(lB)
 
 }
 
-func testB(b *Buffer) {
-	values, _ := b.Get(-1)
-
-	fmt.Println(len(values))
+func testB(b *BufferListener) {
+	values := b.Get()
+	fmt.Println(values)
 }
 
 func main() {

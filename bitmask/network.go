@@ -7,10 +7,10 @@ import (
 
 type Network struct {
 	context   *Context
-	listeners []*Listener
+	listeners []*NetListener
 }
 
-type Listener struct {
+type NetListener struct {
 	context *Context
 	socket  net.Listener
 }
@@ -18,14 +18,14 @@ type Listener struct {
 func NewNetwork(context *Context) (this *Network) {
 	this = new(Network)
 	this.context = context
-	this.listeners = make([]*Listener, 0)
+	this.listeners = make([]*NetListener, 0)
 	this.SpawnListener(":7001")
 
 	return this
 }
 
-func NewListener(context *Context, port string) (this *Listener, success bool) {
-	this = new(Listener)
+func NewNetListener(context *Context, port string) (this *NetListener, success bool) {
+	this = new(NetListener)
 	this.context = context
 
 	var err error
@@ -40,7 +40,7 @@ func NewListener(context *Context, port string) (this *Listener, success bool) {
 	return this, true
 }
 
-func (this *Listener) run() {
+func (this *NetListener) run() {
 	for {
 		s, err := this.socket.Accept()
 
@@ -50,13 +50,13 @@ func (this *Listener) run() {
 			return
 		}
 
-		_ = NewPeer(s, this.context)
+		NewPeer(s, this.context)
 
 	}
 }
 
 func (this *Network) SpawnListener(port string) (success bool) {
-	listener, listening := NewListener(this.context, port)
+	listener, listening := NewNetListener(this.context, port)
 
 	if listening {
 		this.listeners = append(this.listeners, listener)
@@ -76,7 +76,7 @@ func (this *Network) SpawnPeer(address string) (success bool) {
 	}
 	fmt.Println("Successfully connected to peer")
 
-	_ = NewPeer(socket, this.context)
+	NewPeer(socket, this.context)
 
 	return true
 }
