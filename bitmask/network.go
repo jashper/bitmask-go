@@ -19,12 +19,7 @@ func NewNetwork(context *Context) (this *Network) {
 	this = new(Network)
 	this.context = context
 	this.listeners = make([]*Listener, 0)
-
-	listener, listening := NewListener(context, ":7001")
-
-	if listening {
-		this.listeners = append(this.listeners, listener)
-	}
+	this.SpawnListener(":7001")
 
 	return this
 }
