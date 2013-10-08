@@ -1,19 +1,23 @@
 package bitmask
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
+	"math"
 	"net"
+	"unsafe"
 )
 
 type Peer struct {
 	socket  net.Conn
 	context *Context
-	ID      int
 
-	AdListener      BufferListener
-	PermReqListener BufferListener
+	Version   Version
+	Mode      Mode
+	SubnetMap map[Subnet]bool
+	UserAgent string
+
+	AdListener      *BufferListener
+	PermReqListener *BufferListener
 }
 
 func NewPeer(socket net.Conn, context *Context) (this *Peer) {
@@ -21,7 +25,7 @@ func NewPeer(socket net.Conn, context *Context) (this *Peer) {
 	this.socket = socket
 	this.context = context
 
-	// TODO: Assign unique value to ID (ie: ip address)
+	this.SubnetMap = make(map[Subnet]bool)
 
 	this.AdListener = context.AdPackets.SpawnListener()
 	this.PermReqListener = context.PermReqPackets.SpawnListener()
@@ -42,7 +46,6 @@ func (this *Peer) run() {
 	defer this.cleanup()
 
 	var header [12]byte // command + len(payload) + checksum
-	var buffA, buffB, buffC bytes.Buffer
 	var commandType, payloadLen, checkSum uint32
 	for {
 		length, err := this.socket.Read(header[:])
@@ -53,21 +56,13 @@ func (this *Peer) run() {
 		}
 
 		if err != nil {
-			fmt.Println("Peer disconnected")
+			fmt.Println("Peer disconnected before/during new command")
 			return
 		}
 
-		buffA.Write(header[0:4])
-		binary.Read(&buffA, binary.BigEndian, &commandType)
-		buffA.Reset()
-
-		buffB.Write(header[4:8])
-		binary.Read(&buffB, binary.BigEndian, &payloadLen)
-		buffB.Reset()
-
-		buffC.Write(header[8:12])
-		binary.Read(&buffC, binary.BigEndian, &checkSum)
-		buffC.Reset()
+		commandType = *(*uint32)(unsafe.Pointer(&header[0]))
+		payloadLen = *(*uint32)(unsafe.Pointer(&header[4]))
+		checkSum = *(*uint32)(unsafe.Pointer(&header[8]))
 
 		command := Command(commandType)
 
@@ -78,14 +73,25 @@ func (this *Peer) run() {
 			fmt.Println("Invalid header => payload length mismatch")
 			return
 		}
+		if err != nil {
+			fmt.Println("Payload read error")
+			return
+		}
 
 		// TODO: Verify payload with checksum
 
+		var canParse bool
+
 		switch command {
-		case VERSION:
-			this.parseVersion(payload)
+		case C_VERSION:
+			canParse = this.parseVersion(payload)
 		default:
 			fmt.Println("Invalid header => non-existant command")
+			return
+		}
+
+		if !canParse {
+			fmt.Println("Failed to parse")
 			return
 		}
 	}
@@ -96,6 +102,46 @@ func (this *Peer) cleanup() {
 	this.PermReqListener.Stop()
 }
 
-func (this *Peer) parseVersion(payload []byte) {
+func (this *Peer) parseVersion(payload []byte) (canParse bool) {
+	length := len(payload)
 
+	if length < 8 {
+		fmt.Println("VERSION payload too short -> < 8 bytes")
+		return false
+	}
+
+	version := float64(*(*uint32)(unsafe.Pointer(&payload[0])))
+	this.Version = Version(uint32(math.Min(version, float64(this.context.Version))))
+
+	this.Mode = Mode(*(*uint32)(unsafe.Pointer(&payload[4])))
+
+	start := 8
+	subnetCount, start := parseVarInt(payload, start)
+	if start == -1 {
+		fmt.Println("Error while parsing VERSION subnet count")
+		return false
+	}
+
+	// Assumption: subnetCount is never > 2^31 - 1 (ie: 32-bit systems won't overflow to negatives)
+
+	for i := 0; i < int(subnetCount); i++ {
+
+		if start+4 > length {
+			fmt.Println("VERSION payload too short -> not enough subnets")
+			return false
+		}
+
+		this.SubnetMap[Subnet(*(*uint32)(unsafe.Pointer(&payload[start])))] = true
+
+		start += 4
+	}
+
+	str, _ := parseVarStr(payload, start)
+	if str == nil {
+		fmt.Println("Error while parsing VERSION UserAgent")
+		return false
+	}
+	this.UserAgent = *str
+
+	return true
 }
