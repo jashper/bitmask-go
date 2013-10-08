@@ -90,6 +90,36 @@ func (bl *BufferListener) Get() (values [][]byte) {
 	return values
 }
 
+func (b *Buffer) get(start int) (values [][]byte, end int) {
+	if start == int(b.head) {
+		return nil, start
+	}
+
+	end = int(b.head)
+
+	var count int
+	if start > end {
+		count = b.maxIdx - start + end + 1
+	} else {
+		count = end - start
+	}
+
+	values = make([][]byte, count)
+	idx := 0
+	for start != end {
+		values[idx] = make([]byte, len(b.values[start]))
+		copy(values[idx], b.values[start])
+
+		start++
+		if start > b.maxIdx {
+			start = 0
+		}
+		idx++
+	}
+
+	return values, end
+}
+
 func (bl *BufferListener) vote() {
 	b := bl.buffer
 
@@ -121,37 +151,6 @@ func (bl *BufferListener) vote() {
 			}
 		}
 	}
-}
-
-func (b *Buffer) clean() {
-	if b.cleanLock == 1 || !atomic.CompareAndSwapInt32(&b.cleanLock, 0, 1) {
-		return
-	}
-
-	if b.voteCount >= b.peerCount {
-		for {
-			if atomic.CompareAndSwapInt32(&b.voteLock, 0, 1) {
-				b.peerTail = b.nextPeerTail
-				b.voteCount = 0
-				b.voteRound++
-
-				b.voteLock = 0
-				break
-			}
-		}
-	}
-
-	for b.tail != b.peerTail {
-		b.values[b.tail] = nil
-
-		b.tail++
-		if b.tail > b.maxIdx {
-			b.tail = 0
-		}
-	}
-
-	b.cleanLock = 0
-
 }
 
 func (bl *BufferListener) Put(value []byte) {
@@ -190,32 +189,33 @@ func (bl *BufferListener) Put(value []byte) {
 	b.clean()
 }
 
-func (b *Buffer) get(start int) (values [][]byte, end int) {
-	if start == int(b.head) {
-		return nil, start
+func (b *Buffer) clean() {
+	if b.cleanLock == 1 || !atomic.CompareAndSwapInt32(&b.cleanLock, 0, 1) {
+		return
 	}
 
-	end = int(b.head)
+	if b.voteCount >= b.peerCount {
+		for {
+			if atomic.CompareAndSwapInt32(&b.voteLock, 0, 1) {
+				b.peerTail = b.nextPeerTail
+				b.voteCount = 0
+				b.voteRound++
 
-	var count int
-	if start > end {
-		count = b.maxIdx - start + end + 1
-	} else {
-		count = end - start
-	}
-
-	values = make([][]byte, count)
-	idx := 0
-	for start != end {
-		values[idx] = make([]byte, len(b.values[start]))
-		copy(values[idx], b.values[start])
-
-		start++
-		if start > b.maxIdx {
-			start = 0
+				b.voteLock = 0
+				break
+			}
 		}
-		idx++
 	}
 
-	return values, end
+	for b.tail != b.peerTail {
+		b.values[b.tail] = nil
+
+		b.tail++
+		if b.tail > b.maxIdx {
+			b.tail = 0
+		}
+	}
+
+	b.cleanLock = 0
+
 }

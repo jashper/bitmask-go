@@ -11,6 +11,9 @@ type Peer struct {
 	socket  net.Conn
 	context *Context
 	ID      int
+
+	AdListener      BufferListener
+	PermReqListener BufferListener
 }
 
 func NewPeer(socket net.Conn, context *Context) (this *Peer) {
@@ -19,6 +22,9 @@ func NewPeer(socket net.Conn, context *Context) (this *Peer) {
 	this.context = context
 
 	// TODO: Assign unique value to ID (ie: ip address)
+
+	this.AdListener = context.AdPackets.SpawnListener()
+	this.PermReqListener = context.PermReqPackets.SpawnListener()
 
 	go this.run()
 
@@ -33,6 +39,7 @@ func (this *Peer) Send(message []byte) (err error) {
 
 func (this *Peer) run() {
 	defer this.socket.Close()
+	defer this.cleanup()
 
 	var header [12]byte // command + len(payload) + checksum
 	var buffA, buffB, buffC bytes.Buffer
@@ -82,6 +89,11 @@ func (this *Peer) run() {
 			return
 		}
 	}
+}
+
+func (this *Peer) cleanup() {
+	this.AdListener.Stop()
+	this.PermReqListener.Stop()
 }
 
 func (this *Peer) parseVersion(payload []byte) {
