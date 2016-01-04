@@ -1,0 +1,16 @@
+Types of Messages:
+
+Header:
+	4 - command (uint32)
+	4 - payload length (uint32)
+	4 - checksum (uint32)
+
+VERSION:
+	4 - version (uint32)
+	4 - mode (uint32)
+ 	1+ (1+ + 4x) - subnets (uint32_list)
+ 	1+ (1+ + x) - userAgent string (var_str)
+
+VERACK:
+(same as bitmessage)
+
